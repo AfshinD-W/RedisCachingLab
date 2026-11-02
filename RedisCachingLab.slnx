@@ -1,0 +1,7 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/RedisCachingLab.Api/RedisCachingLab.Api.csproj" />
+    <Project Path="src/RedisCachingLab.Core/RedisCachingLab.Core.csproj" />
+    <Project Path="src/RedisCachingLab.Infrastructure/RedisCachingLab.Infrastructure.csproj" />
+  </Folder>
+</Solution>
