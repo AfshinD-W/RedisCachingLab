@@ -4,10 +4,10 @@ namespace RedisCachingLab.Infrastructure.Redis;
 
 public sealed class RedisConnection
 {
-    private readonly ConnectionMultiplexer _Connection;
+    public ConnectionMultiplexer Connection { get; }
 
     public RedisConnection(string connectionString)
     {
-        _Connection = ConnectionMultiplexer.Connect(connectionString);
+        Connection = ConnectionMultiplexer.Connect(connectionString);
     }
 }
