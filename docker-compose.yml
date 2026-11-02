@@ -3,6 +3,25 @@ services:
   redis:
     image: redis:7-alpine
     container_name: redis-caching-lab
+    restart: unless-stopped
     ports:
       - "127.0.0.1:6380:6379"
+    volumes:
+      - redis_data:/data
+
+  sqlserver:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: redis-lab-sqlserver
     restart: unless-stopped
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_PID: Developer
+      MSSQL_SA_PASSWORD: ${MSSQL_SA_PASSWORD:?Set MSSQL_SA_PASSWORD in .env}
+    ports:
+      - "127.0.0.1:1435:1433"
+    volumes:
+      - sqlserver_data:/var/opt/mssql
+
+volumes:
+  redis_data:
+  sqlserver_data:
