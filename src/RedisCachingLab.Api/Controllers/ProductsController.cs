@@ -1,6 +1,7 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using RedisCachingLab.Core.Entities;
 using RedisCachingLab.Core.Interfaces;
+using RedisCachingLab.Infrastructure.Services;
 
 namespace RedisCachingLab.Api.Controllers;
 
@@ -65,12 +66,10 @@ public class ProductsController : ControllerBase
     [HttpDelete("delete-{id:int}")]
     public async Task<IActionResult> Delete(int id)
     {
-        var product = await _productService.GetByIdAsync(id);
+        var deleted = await _productService.DeleteAsync(id);
 
-        if (product is null)
+        if (!deleted)
             return NotFound();
-
-        await _productService.DeleteAsync(id);
 
         return NoContent();
     }

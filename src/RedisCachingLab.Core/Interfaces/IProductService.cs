@@ -12,5 +12,5 @@ public interface IProductService
 
     Task UpdateAsync(Product product);
 
-    Task DeleteAsync(int id);
+    Task<bool> DeleteAsync(int id);
 }

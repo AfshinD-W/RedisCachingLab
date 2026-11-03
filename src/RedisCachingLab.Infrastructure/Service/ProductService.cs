@@ -29,8 +29,21 @@ public class ProductService(IProductRepository repository, ICacheService cache) 
         return product;
     }
 
-    public Task<List<Product>> GetAllAsync()
-        => repository.GetAllAsync();
+    public async Task<List<Product>> GetAllAsync()
+    {
+        const string cacheKey = "products:all";
+
+        var cachedProducts = await cache.GetAsync<List<Product>>(cacheKey);
+
+        if (cachedProducts is not null)
+            return cachedProducts;
+
+        var products = await repository.GetAllAsync();
+
+        await cache.SetAsync(cacheKey, products);
+
+        return products;
+    }
 
     public async Task<Product> CreateAsync(Product product)
     {
@@ -39,21 +52,28 @@ public class ProductService(IProductRepository repository, ICacheService cache) 
         return product;
     }
 
-
     public async Task UpdateAsync(Product product)
     {
         await repository.UpdateAsync(product);
 
+        var cacheKey = $"products:{product.Id}";
+        await cache.RemoveAsync(cacheKey);
+
     }
 
-    public async Task DeleteAsync(int id)
+    public async Task<bool> DeleteAsync(int id)
     {
         var product = await repository.GetByIdAsync(id);
 
         if (product is null)
-            return;
+            return false;
 
         await repository.DeleteAsync(product);
+
+        var cacheKey = $"products:{id}";
+        await cache.RemoveAsync(cacheKey);
+
+        return true;
     }
 
 }
