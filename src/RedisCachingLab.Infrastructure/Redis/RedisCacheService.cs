@@ -1,9 +1,10 @@
-﻿using StackExchange.Redis;
+﻿using RedisCachingLab.Core.Interfaces;
+using StackExchange.Redis;
 using System.Text.Json;
 
 namespace RedisCachingLab.Infrastructure.Redis
 {
-    public sealed class RedisCacheService
+    public sealed class RedisCacheService : ICacheService
     {
         private readonly IDatabase _database;
 
@@ -20,7 +21,7 @@ namespace RedisCachingLab.Infrastructure.Redis
             await _database.StringSetAsync(key, json, expiry, false);
         }
 
-        public async Task<T?> GetTAsync<T>(string key)
+        public async Task<T?> GetAsync<T>(string key)
         {
             RedisValue value = await _database.StringGetAsync(key);
 

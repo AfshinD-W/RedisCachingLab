@@ -6,20 +6,27 @@ namespace RedisCachingLab.Api.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-public class ProductsController(IProductRepository repository) : ControllerBase
+public class ProductsController : ControllerBase
 {
-    [HttpGet]
+    private IProductService _productService;
+
+    public ProductsController(IProductService productService)
+    {
+        _productService = productService;
+    }
+
+    [HttpGet("get-all")]
     public async Task<IActionResult> GetAll()
     {
-        var products = await repository.GetAllAsync();
+        var products = await _productService.GetAllAsync();
 
         return Ok(products);
     }
 
-    [HttpGet("{id:int}")]
+    [HttpGet("get-{id:int}")]
     public async Task<IActionResult> GetById(int id)
     {
-        var product = await repository.GetByIdAsync(id);
+        var product = await _productService.GetByIdAsync(id);
 
         if (product is null)
             return NotFound();
@@ -27,14 +34,45 @@ public class ProductsController(IProductRepository repository) : ControllerBase
         return Ok(product);
     }
 
-    [HttpPost]
+    [HttpPost("create")]
     public async Task<IActionResult> Create(Product product)
     {
-        await repository.AddAsync(product);
+        await _productService.CreateAsync(product);
 
         return CreatedAtAction(
             nameof(GetById),
             new { id = product.Id },
             product);
     }
+
+
+    [HttpPut("update-{id:int}")]
+    public async Task<IActionResult> Update(int id, Product product)
+    {
+        if (id != product.Id)
+            return BadRequest("Route ID and Product ID do not match.");
+
+        var existingProduct = await _productService.GetByIdAsync(id);
+
+        if (existingProduct is null)
+            return NotFound();
+
+        await _productService.UpdateAsync(product);
+
+        return NoContent();
+    }
+
+    [HttpDelete("delete-{id:int}")]
+    public async Task<IActionResult> Delete(int id)
+    {
+        var product = await _productService.GetByIdAsync(id);
+
+        if (product is null)
+            return NotFound();
+
+        await _productService.DeleteAsync(id);
+
+        return NoContent();
+    }
+
 }
