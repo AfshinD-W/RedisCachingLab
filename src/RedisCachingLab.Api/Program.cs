@@ -1,4 +1,6 @@
+using Microsoft.EntityFrameworkCore;
 using RedisCachingLab.Core.Entities;
+using RedisCachingLab.Infrastructure.Persistence;
 using RedisCachingLab.Infrastructure.Redis;
 using StackExchange.Redis;
 
@@ -10,6 +12,11 @@ builder.Services.AddOpenApi();
 
 builder.Services.AddSingleton(new RedisConnection("localhost:6380"));
 builder.Services.AddSingleton<RedisCacheService>();
+
+builder.Services.AddDbContext<AppDbContext>(options =>
+    options.UseSqlServer(
+        builder.Configuration.GetConnectionString("DefaultConnection")
+        ));
 
 var app = builder.Build();
 
