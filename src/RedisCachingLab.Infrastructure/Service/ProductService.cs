@@ -1,7 +1,6 @@
 ﻿using Microsoft.Extensions.Logging;
 using RedisCachingLab.Core.Entities;
 using RedisCachingLab.Core.Interfaces;
-using System.Diagnostics;
 
 namespace RedisCachingLab.Infrastructure.Services;
 
@@ -35,29 +34,15 @@ public class ProductService(IProductRepository repository, ICacheService cache, 
 
     public async Task<List<Product>> GetAllAsync()
     {
-        var stopwatch = Stopwatch.StartNew();
-
-        // 1. Redis GET
         var cachedProducts = await cache.GetAsync<List<Product>>(cacheAllKeys);
-
-        logger.LogInformation("Redis GET completed in {ElapsedMs} ms", stopwatch.ElapsedMilliseconds);
 
         if (cachedProducts is not null)
             return cachedProducts;
 
-        // 2. SQL GET
-        stopwatch.Restart();
-
         var products = await repository.GetAllAsync();
 
-        logger.LogInformation("SQL GET completed in {ElapsedMs} ms", stopwatch.ElapsedMilliseconds);
-
-        // 3. Redis SET
-        stopwatch.Restart();
 
         await cache.SetAsync(cacheAllKeys, products);
-
-        logger.LogInformation("Redis SET completed in {ElapsedMs} ms", stopwatch.ElapsedMilliseconds);
 
         return products;
     }
