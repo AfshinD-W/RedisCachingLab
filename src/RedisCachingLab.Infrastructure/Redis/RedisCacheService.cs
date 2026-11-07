@@ -1,4 +1,5 @@
-﻿using RedisCachingLab.Core.Interfaces;
+﻿using Microsoft.Extensions.Logging;
+using RedisCachingLab.Core.Interfaces;
 using StackExchange.Redis;
 using System.Text.Json;
 
@@ -7,10 +8,12 @@ namespace RedisCachingLab.Infrastructure.Redis
     public sealed class RedisCacheService : ICacheService
     {
         private readonly IDatabase _database;
+        private readonly ILogger<RedisCacheService> _logger;
 
-        public RedisCacheService(RedisConnection redisConnection)
+        public RedisCacheService(RedisConnection redisConnection, ILogger<RedisCacheService> logger)
         {
             _database = redisConnection.Connection.GetDatabase();
+            _logger = logger;
         }
 
 
@@ -18,22 +21,45 @@ namespace RedisCachingLab.Infrastructure.Redis
         {
             string json = JsonSerializer.Serialize(value);
 
-            await _database.StringSetAsync(key, json, expiry, false);
+            try
+            {
+                await _database.StringSetAsync(key, json, expiry, false);
+            }
+            catch (Exception ex) when (IsRedisConnectionError(ex))
+            {
+                _logger.LogWarning(ex, "Redis SET failed for key: {CacheKey}", key);
+            }
         }
 
         public async Task<T?> GetAsync<T>(string key)
         {
-            RedisValue value = await _database.StringGetAsync(key);
+            try
+            {
+                RedisValue value = await _database.StringGetAsync(key);
 
-            if (value.IsNull)
+                if (value.IsNull)
+                    return default;
+
+                return JsonSerializer.Deserialize<T>(value.ToString());
+            }
+            catch (Exception ex) when (IsRedisConnectionError(ex))
+            {
+                _logger.LogWarning(ex, "Redis GET failed for key: {CacheKey}", key);
+
                 return default;
-
-            return JsonSerializer.Deserialize<T>(value.ToString());
+            }
         }
 
         public async Task RemoveAsync(string key)
         {
-            await _database.KeyDeleteAsync(key);
+            try
+            {
+                await _database.KeyDeleteAsync(key);
+            }
+            catch (Exception ex) when (IsRedisConnectionError(ex))
+            {
+                _logger.LogWarning(ex, "Redis DELETE failed for key: {CacheKey}", key);
+            }
         }
 
 
@@ -94,5 +120,11 @@ namespace RedisCachingLab.Infrastructure.Redis
 
         public async Task<RedisValue> GetHashFieldAsync(string key, string field)
             => await _database.HashGetAsync(key, field);
+
+
+        private bool IsRedisConnectionError(Exception exception)
+        {
+            return exception is RedisConnectionException or RedisTimeoutException;
+        }
     }
 }

@@ -11,7 +11,7 @@ builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
 //Redis registeration
-builder.Services.AddSingleton(new RedisConnection("localhost:6380"));
+builder.Services.AddSingleton(new RedisConnection("127.0.0.1:6380"));
 builder.Services.AddSingleton<ICacheService, RedisCacheService>();
 
 //Sql registeration
@@ -37,6 +37,7 @@ if (app.Environment.IsDevelopment())
     {
         options.SwaggerEndpoint("/swagger/v1/swagger.json", "RedisCachingLab API v1");
         options.RoutePrefix = string.Empty;
+        options.DisplayRequestDuration();
     });
 }
 
