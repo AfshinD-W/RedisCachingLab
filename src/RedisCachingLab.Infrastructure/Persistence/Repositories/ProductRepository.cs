@@ -28,7 +28,16 @@ public class ProductRepository(AppDbContext context) : IProductRepository
 
     public async Task UpdateAsync(Product product)
     {
-        context.Products.Update(product);
+        var existingProduct = await context.Products
+            .FindAsync(product.Id);
+
+        if (existingProduct is null)
+            throw new InvalidOperationException("Product not found.");
+
+        context.Entry(existingProduct)
+            .CurrentValues
+            .SetValues(product);
+
         await context.SaveChangesAsync();
     }
 

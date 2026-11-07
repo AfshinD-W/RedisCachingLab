@@ -1,35 +1,49 @@
-﻿using Microsoft.Extensions.Logging;
-using RedisCachingLab.Core.Entities;
+﻿using RedisCachingLab.Core.Entities;
 using RedisCachingLab.Core.Interfaces;
+using System.Collections.Concurrent;
 
 namespace RedisCachingLab.Infrastructure.Services;
 
-public class ProductService(IProductRepository repository, ICacheService cache, ILogger<ProductService> logger) : IProductService
+public class ProductService(IProductRepository repository, ICacheService cache) : IProductService
 {
+    private static readonly SemaphoreSlim _cacheLock = new(1, 1);
+    private static readonly ConcurrentDictionary<int, SemaphoreSlim> _productLocks = new();
+
+    private static SemaphoreSlim GetProductLock(int productId)
+    {
+        return _productLocks.GetOrAdd(productId, _ => new SemaphoreSlim(1, 1));
+    }
+
     const string cacheAllKeys = "products:all";
 
     public async Task<Product?> GetByIdAsync(int id)
     {
-        // 1. Generate cache key
-        var cacheKey = $"products:{id}";
+        var productLock = GetProductLock(id);
 
-        // 2. Check Redis
-        var cachedProduct = await cache.GetAsync<Product>(cacheKey);
+        await productLock.WaitAsync();
 
-        // 3. Cache Hit
-        if (cachedProduct is not null)
-            return cachedProduct;
+        try
+        {
+            var cacheKey = $"products:{id}";
 
-        // 4. Cache Miss - Get from SQL Server
-        var product = await repository.GetByIdAsync(id);
+            var cachedProduct = await cache.GetAsync<Product>(cacheKey);
 
-        if (product is null)
-            return null;
+            if (cachedProduct is not null)
+                return cachedProduct;
 
-        // 5. Store in Redis
-        await cache.SetAsync(cacheKey, product);
+            var product = await repository.GetByIdAsync(id);
 
-        return product;
+            if (product is null)
+                return null;
+
+            await cache.SetAsync(cacheKey, product);
+
+            return product;
+        }
+        finally
+        {
+            productLock.Release();
+        }
     }
 
     public async Task<List<Product>> GetAllAsync()
@@ -39,47 +53,105 @@ public class ProductService(IProductRepository repository, ICacheService cache, 
         if (cachedProducts is not null)
             return cachedProducts;
 
-        var products = await repository.GetAllAsync();
+        await _cacheLock.WaitAsync();
 
+        try
+        {
+            cachedProducts = await cache.GetAsync<List<Product>>(cacheAllKeys);
 
-        await cache.SetAsync(cacheAllKeys, products);
+            if (cachedProducts is not null)
+                return cachedProducts;
 
-        return products;
+            var products = await repository.GetAllAsync();
+
+            await cache.SetAsync(cacheAllKeys, products);
+
+            return products;
+        }
+        finally
+        {
+            _cacheLock.Release();
+        }
     }
 
     public async Task<Product> CreateAsync(Product product)
     {
-        await repository.AddAsync(product);
+        await _cacheLock.WaitAsync();
+        try
+        {
+            await repository.AddAsync(product);
 
-        await cache.RemoveAsync(cacheAllKeys);
+            await cache.RemoveAsync(cacheAllKeys);
 
-        return product;
+            return product;
+        }
+        finally
+        {
+            _cacheLock.Release();
+        }
+
     }
 
     public async Task UpdateAsync(Product product)
     {
-        await repository.UpdateAsync(product);
+        var productLock = GetProductLock(product.Id);
 
-        var cacheKey = $"products:{product.Id}";
-        await cache.RemoveAsync(cacheKey);
-        await cache.RemoveAsync(cacheAllKeys);
+        await productLock.WaitAsync();
 
+        try
+        {
+            await _cacheLock.WaitAsync();
+            try
+            {
+                await repository.UpdateAsync(product);
+
+                var cacheKey = $"products:{product.Id}";
+                await cache.RemoveAsync(cacheKey);
+                await cache.RemoveAsync(cacheAllKeys);
+            }
+            finally
+            {
+                _cacheLock.Release();
+            }
+        }
+        finally
+        {
+            productLock.Release();
+        }
     }
 
     public async Task<bool> DeleteAsync(int id)
     {
-        var product = await repository.GetByIdAsync(id);
+        var productLock = GetProductLock(id);
 
-        if (product is null)
-            return false;
+        await productLock.WaitAsync();
+        try
+        {
+            await _cacheLock.WaitAsync();
+            try
+            {
+                var product = await repository.GetByIdAsync(id);
 
-        await repository.DeleteAsync(product);
+                if (product is null)
+                    return false;
 
-        var cacheKey = $"products:{id}";
-        await cache.RemoveAsync(cacheKey);
-        await cache.RemoveAsync(cacheAllKeys);
+                await repository.DeleteAsync(product);
 
-        return true;
+                var cacheKey = $"products:{id}";
+                await cache.RemoveAsync(cacheKey);
+                await cache.RemoveAsync(cacheAllKeys);
+
+                return true;
+            }
+            finally
+            {
+                _cacheLock.Release();
+            }
+        }
+        finally
+        {
+            productLock.Release();
+        }
     }
 
 }
