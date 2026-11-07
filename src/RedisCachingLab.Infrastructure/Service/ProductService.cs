@@ -5,6 +5,8 @@ namespace RedisCachingLab.Infrastructure.Services;
 
 public class ProductService(IProductRepository repository, ICacheService cache) : IProductService
 {
+    const string cacheAllKeys = "products:all";
+
     public async Task<Product?> GetByIdAsync(int id)
     {
         // 1. Generate cache key
@@ -31,16 +33,15 @@ public class ProductService(IProductRepository repository, ICacheService cache) 
 
     public async Task<List<Product>> GetAllAsync()
     {
-        const string cacheKey = "products:all";
 
-        var cachedProducts = await cache.GetAsync<List<Product>>(cacheKey);
+        var cachedProducts = await cache.GetAsync<List<Product>>(cacheAllKeys);
 
         if (cachedProducts is not null)
             return cachedProducts;
 
         var products = await repository.GetAllAsync();
 
-        await cache.SetAsync(cacheKey, products);
+        await cache.SetAsync(cacheAllKeys, products);
 
         return products;
     }
@@ -48,6 +49,8 @@ public class ProductService(IProductRepository repository, ICacheService cache) 
     public async Task<Product> CreateAsync(Product product)
     {
         await repository.AddAsync(product);
+
+        await cache.RemoveAsync(cacheAllKeys);
 
         return product;
     }
@@ -58,6 +61,7 @@ public class ProductService(IProductRepository repository, ICacheService cache) 
 
         var cacheKey = $"products:{product.Id}";
         await cache.RemoveAsync(cacheKey);
+        await cache.RemoveAsync(cacheAllKeys);
 
     }
 
@@ -72,6 +76,7 @@ public class ProductService(IProductRepository repository, ICacheService cache) 
 
         var cacheKey = $"products:{id}";
         await cache.RemoveAsync(cacheKey);
+        await cache.RemoveAsync(cacheAllKeys);
 
         return true;
     }
