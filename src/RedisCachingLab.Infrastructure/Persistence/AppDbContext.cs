@@ -9,7 +9,7 @@ namespace RedisCachingLab.Infrastructure.Persistence
 
 
         public DbSet<Product> Products { get; set; }
-
+        public DbSet<OutboxMessage> OutboxMessages { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {

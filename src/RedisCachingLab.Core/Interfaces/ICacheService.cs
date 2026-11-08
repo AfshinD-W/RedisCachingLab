@@ -7,4 +7,6 @@ public interface ICacheService
     Task SetAsync<T>(string key, T value, TimeSpan? expiry = null);
 
     Task RemoveAsync(string key);
+
+    Task RemoveStrictAsync(string key);
 }

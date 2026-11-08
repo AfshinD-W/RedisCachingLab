@@ -62,6 +62,10 @@ namespace RedisCachingLab.Infrastructure.Redis
             }
         }
 
+        public async Task RemoveStrictAsync(string key)
+        {
+            await _database.KeyDeleteAsync(key);
+        }
 
         public async Task SetHashAsync<T>(string key, T value)
         {

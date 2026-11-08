@@ -12,6 +12,8 @@ public interface IProductRepository
 
     Task UpdateAsync(Product product);
 
+    Task UpdateWithOutboxAsync(Product product, OutboxMessage message);
+
     Task DeleteAsync(Product product);
 
     Task<bool> ExistsAsync(int id);

@@ -41,6 +41,18 @@ public class ProductRepository(AppDbContext context) : IProductRepository
         await context.SaveChangesAsync();
     }
 
+    public async Task UpdateWithOutboxAsync(Product product, OutboxMessage message)
+    {
+        var existingProduct = await context.Products.FindAsync(product.Id)
+            ?? throw new InvalidOperationException("Product not found.");
+
+        context.Entry(existingProduct).CurrentValues.SetValues(product);
+
+        await context.OutboxMessages.AddAsync(message);
+
+        await context.SaveChangesAsync();
+    }
+
     public async Task DeleteAsync(Product product)
     {
         context.Products.Remove(product);
@@ -52,4 +64,5 @@ public class ProductRepository(AppDbContext context) : IProductRepository
         return await context.Products
             .AnyAsync(p => p.Id == id);
     }
+
 }

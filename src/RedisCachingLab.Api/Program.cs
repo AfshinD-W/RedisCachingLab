@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using RedisCachingLab.Core.Interfaces;
+using RedisCachingLab.Infrastructure.BackgroundServices;
 using RedisCachingLab.Infrastructure.Persistence;
 using RedisCachingLab.Infrastructure.Persistence.Repositories;
 using RedisCachingLab.Infrastructure.Redis;
@@ -9,6 +10,8 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
+
+builder.Services.AddHostedService<OutboxProcessor>();
 
 //Redis registeration
 builder.Services.AddSingleton(new RedisConnection("127.0.0.1:6380"));

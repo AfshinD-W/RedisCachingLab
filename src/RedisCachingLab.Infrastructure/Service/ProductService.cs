@@ -1,6 +1,7 @@
 ﻿using RedisCachingLab.Core.Entities;
 using RedisCachingLab.Core.Interfaces;
 using System.Collections.Concurrent;
+using System.Text.Json;
 
 namespace RedisCachingLab.Infrastructure.Services;
 
@@ -103,11 +104,16 @@ public class ProductService(IProductRepository repository, ICacheService cache) 
             await _cacheLock.WaitAsync();
             try
             {
-                await repository.UpdateAsync(product);
+                var message = new OutboxMessage
+                {
+                    Type = "ProductUpdated",
+                    Payload = JsonSerializer.Serialize(new
+                    {
+                        ProductId = product.Id
+                    })
+                };
 
-                var cacheKey = $"products:{product.Id}";
-                await cache.RemoveAsync(cacheKey);
-                await cache.RemoveAsync(cacheAllKeys);
+                await repository.UpdateWithOutboxAsync(product, message);
             }
             finally
             {
