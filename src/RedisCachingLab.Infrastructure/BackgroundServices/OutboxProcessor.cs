@@ -4,6 +4,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using RedisCachingLab.Core.Entities;
 using RedisCachingLab.Core.Events;
+using RedisCachingLab.Core.Exceptions;
 using RedisCachingLab.Core.Interfaces;
 using RedisCachingLab.Infrastructure.Persistence;
 using System.Text.Json;
@@ -28,6 +29,7 @@ public class OutboxProcessor(IServiceScopeFactory scopeFactory, ICacheService ca
                 var messages = await context.OutboxMessages
                     .Where(x =>
                         x.ProcessedAt == null &&
+                        x.FailedAt == null &&
                         (x.NextAttemptAt == null || x.NextAttemptAt <= now))
                     .OrderBy(x => x.CreatedAt)
                     .ThenBy(x => x.Id)
@@ -71,7 +73,7 @@ public class OutboxProcessor(IServiceScopeFactory scopeFactory, ICacheService ca
                         var payload = JsonSerializer.Deserialize<ProductUpdatedPayload>(message.Payload);
 
                         if (payload is null || payload.ProductId <= 0)
-                            throw new InvalidOperationException("Invalid ProductUpdated payload.");
+                            throw new PermanentOutboxException("Invalid ProductUpdated payload.");
 
                         await cache.RemoveStrictAsync($"products:{payload.ProductId}");
 
@@ -81,7 +83,7 @@ public class OutboxProcessor(IServiceScopeFactory scopeFactory, ICacheService ca
                     }
 
                 default:
-                    throw new NotSupportedException($"Unknown Outbox message type: {message.Type}");
+                    throw new PermanentOutboxException($"Unknown Outbox message type: {message.Type}");
             }
 
             message.ProcessedAt = DateTime.UtcNow;
@@ -96,17 +98,56 @@ public class OutboxProcessor(IServiceScopeFactory scopeFactory, ICacheService ca
         {
             throw;
         }
+        catch (PermanentOutboxException ex)
+        {
+            message.ProcessedAt = null;
+            message.FailedAt = DateTime.UtcNow;
+            message.NextAttemptAt = null;
+            message.LastError = ex.Message;
+
+            await context.SaveChangesAsync(stoppingToken);
+
+            logger.LogError(
+                ex,
+                "Outbox message {MessageId} permanently failed. No retry will be attempted.",
+                message.Id);
+        }
         catch (Exception ex)
         {
             message.ProcessedAt = null;
             message.RetryCount++;
             message.LastError = ex.Message;
-            message.NextAttemptAt = DateTime.UtcNow.AddSeconds(10);
+
+            const int maxRetryCount = 5;
+
+            if (message.RetryCount >= maxRetryCount)
+            {
+                message.FailedAt = DateTime.UtcNow;
+                message.NextAttemptAt = null;
+
+                logger.LogError(ex, "Outbox message {MessageId} permanently failed after {RetryCount} attempts.", message.Id, message.RetryCount);
+            }
+            else
+            {
+                message.NextAttemptAt = DateTime.UtcNow.Add(CalculateRetryDelay(message.RetryCount));
+
+                logger.LogWarning(ex, "Outbox message {MessageId} failed. Retry count: {RetryCount}. Next attempt: {NextAttemptAt}", message.Id, message.RetryCount, message.NextAttemptAt);
+            }
 
             await context.SaveChangesAsync(stoppingToken);
 
             logger.LogError(ex, "Failed to process Outbox message {MessageId}. Retry count: {RetryCount}", message.Id, message.RetryCount);
         }
+    }
+
+
+    private static TimeSpan CalculateRetryDelay(int retryCount)
+    {
+        var delaySeconds = Math.Min(
+            10 * Math.Pow(2, retryCount - 1),
+            300);
+
+        return TimeSpan.FromSeconds(delaySeconds);
     }
 
 }

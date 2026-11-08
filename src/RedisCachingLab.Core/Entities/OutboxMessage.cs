@@ -13,6 +13,8 @@ public class OutboxMessage
 
     public DateTime? ProcessedAt { get; set; }
 
+    public DateTime? FailedAt { get; set; }
+
     public int RetryCount { get; set; }
 
     public DateTime? NextAttemptAt { get; set; }

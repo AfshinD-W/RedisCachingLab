@@ -33,6 +33,9 @@ namespace RedisCachingLab.Infrastructure.Persistence.Migrations
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
 
+                    b.Property<DateTime?>("FailedAt")
+                        .HasColumnType("datetime2");
+
                     b.Property<string>("LastError")
                         .HasColumnType("nvarchar(max)");
 
